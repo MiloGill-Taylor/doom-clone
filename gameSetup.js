@@ -185,7 +185,7 @@ export function loadAssets(textureLoader, fbxLoader, checkAllAssetsLoaded) {
 
     // Load water bottle model
     fbxLoader.load(
-        'models/steel bottle.fbx',
+        'models/steel_bottle.fbx',
         function(object) {
             console.log('Bottle model loaded successfully');
             assets.bottleModel = object;

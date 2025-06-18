@@ -149,7 +149,7 @@ function loadTextures() {
 
     // Load water bottle model
     fbxLoader.load(
-        'models/steel bottle.fbx',
+        'models/steel_bottle.fbx',
         function(object) {
             console.log('Bottle model loaded successfully');
             bottleModel = object;
@@ -305,31 +305,10 @@ function clearLevel() {
 function createWall(position, size, textureType = 'metal') {
     const geometry = new THREE.BoxGeometry(size[0], size[1], size[2]);
 
-    // Create material with proper texture setup
-    const material = new THREE.MeshLambertMaterial();
-
-    // Select texture based on type
-    let selectedTexture = wallTexture; // default to metal
-    if (textureType === 'brick' && brickTexture) {
-        selectedTexture = brickTexture;
-    }
-
-    // Check if texture loaded successfully, fallback to color if not
-    if (selectedTexture) {
-        // Set tiling for this specific wall
-        const tileX = Math.max(1, Math.floor(size[0] / 2)); // Tile every 2 units
-        const tileY = Math.max(1, Math.floor(size[1] / 2)); // Tile every 2 units
-
-        // Clone the texture for this wall so we can set unique repeat values
-        material.map = selectedTexture.clone();
-        material.map.wrapS = THREE.RepeatWrapping;
-        material.map.wrapT = THREE.RepeatWrapping;
-        material.map.repeat.set(tileX, tileY);
-        material.map.needsUpdate = true;
-    } else {
-        // Fallback to a visible color if texture doesn't load
-        material.color.setHex(textureType === 'brick' ? 0x8B4513 : 0x666666);
-    }
+    // Use simple white office walls instead of textures
+    const material = new THREE.MeshLambertMaterial({
+        color: 0xf5f5f5  // Off-white/whitewashed color
+    });
 
     const wall = new THREE.Mesh(geometry, material);
     wall.position.set(position[0], position[1], position[2]);
@@ -390,16 +369,9 @@ function showLevelText() {
 
 function checkLevelCompletion() {
     if (gameState.levelCompleted) return;
-
-    // Check if player is near the end position
-    const playerPos = player.position;
-    const endPos = levelData.endPos;
-    const distance = Math.sqrt(
-        Math.pow(playerPos.x - endPos.x, 2) +
-        Math.pow(playerPos.z - endPos.z, 2)
-    );
-
-    if (distance < 8) { // Within 8 units of end
+    
+    // Check if all enemies are dead
+    if (enemies.length === 0) {
         completeLevel();
     }
 }
@@ -779,9 +751,27 @@ function updateHUD() {
 }
 
 function showGameOver() {
-    document.getElementById('gameOverScreen').style.display = 'flex';
-    if (gameState.isPointerLocked) {
-        document.exitPointerLock();
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    
+    // Only set quote if game over screen is not already showing
+    if (gameOverScreen.style.display !== 'flex') {
+        // Array of Ben quotes
+        const benQuotes = [
+            "We're on the high road to anarchy",
+            "We're just putting lipstick on a pig. But sometimes what the pig needs is lipstick",
+            "I would describe that as criminally optimistic",
+            "Every time I hear 'form data' is a stab to my heart",
+            "As the system grows, there are more things"
+        ];
+        
+        // Select a random quote
+        const randomQuote = benQuotes[Math.floor(Math.random() * benQuotes.length)];
+        document.getElementById('benQuote').textContent = `"${randomQuote}"`;
+        
+        gameOverScreen.style.display = 'flex';
+        if (gameState.isPointerLocked) {
+            document.exitPointerLock();
+        }
     }
 }
 

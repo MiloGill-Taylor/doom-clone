@@ -49,14 +49,6 @@ export function buildLevel(levelData, scene, createWall) {
     levelData.rooms.forEach(room => {
         buildRoom(room, scene, createWall);
     });
-
-    // Add end marker (red sphere)
-    const endMarker = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 16, 16),
-        new THREE.MeshLambertMaterial({ color: 0xff0000, emissive: 0x440000 })
-    );
-    endMarker.position.set(levelData.endPos.x, 2, levelData.endPos.z);
-    scene.add(endMarker);
 }
 
 function buildRoom(room, scene, createWall) {
