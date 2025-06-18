@@ -13,7 +13,8 @@ const gameState = {
     mouseMovement: { x: 0, y: 0 },
     currentLevel: 1,
     levelCompleted: false,
-    showingLevelText: false
+    showingLevelText: false,
+    godMode: false // God mode for testing
 };
 
 // Three.js setup
@@ -98,6 +99,18 @@ function init() {
 
     // Load all textures
     loadTextures();
+
+    // Add god mode toggle (G key)
+    document.addEventListener('keydown', (event) => {
+        if (event.code === 'KeyG') {
+            gameState.godMode = !gameState.godMode;
+            console.log(`God Mode ${gameState.godMode ? 'ENABLED' : 'DISABLED'}`);
+
+            // Visual feedback
+            const godModeEl = document.getElementById('godMode') || createGodModeIndicator();
+            godModeEl.style.display = gameState.godMode ? 'block' : 'none';
+        }
+    });
 }
 
 function loadTextures() {
@@ -219,6 +232,25 @@ function loadTextures() {
     }
 }
 
+function createGodModeIndicator() {
+    const godModeEl = document.createElement('div');
+    godModeEl.id = 'godMode';
+    godModeEl.style.cssText = `
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        color: #ffff00;
+        font-size: 18px;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        z-index: 1000;
+        display: none;
+    `;
+    godModeEl.textContent = 'GOD MODE';
+    document.body.appendChild(godModeEl);
+    return godModeEl;
+}
+
 // createWeapon function now imported from gameSetup.js
 
 
@@ -232,20 +264,54 @@ function createLevel() {
     // Generate the level layout
     generateLevel(levelData);
 
-    // Use the simple room size (20x20) for our single room
-    const ROOM_SIZE = 20;
+    // Calculate level bounds based on all rooms and corridors
+    let minX = 0, maxX = 0, minZ = 0, maxZ = 0;
 
-    // Create floor and ceiling sized to match the single room
-    const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+    // Check all rooms
+    levelData.rooms.forEach(room => {
+        const roomMinX = room.worldPos.x - room.width/2;
+        const roomMaxX = room.worldPos.x + room.width/2;
+        const roomMinZ = room.worldPos.z - room.height/2;
+        const roomMaxZ = room.worldPos.z + room.height/2;
+
+        minX = Math.min(minX, roomMinX);
+        maxX = Math.max(maxX, roomMaxX);
+        minZ = Math.min(minZ, roomMinZ);
+        maxZ = Math.max(maxZ, roomMaxZ);
+    });
+
+    // Check all corridors
+    levelData.corridors.forEach(corridor => {
+        const corrMinX = corridor.worldPos.x - corridor.width/2;
+        const corrMaxX = corridor.worldPos.x + corridor.width/2;
+        const corrMinZ = corridor.worldPos.z - corridor.height/2;
+        const corrMaxZ = corridor.worldPos.z + corridor.height/2;
+
+        minX = Math.min(minX, corrMinX);
+        maxX = Math.max(maxX, corrMaxX);
+        minZ = Math.min(minZ, corrMinZ);
+        maxZ = Math.max(maxZ, corrMaxZ);
+    });
+
+    // Add some padding
+    const padding = 5;
+    const levelWidth = (maxX - minX) + padding * 2;
+    const levelHeight = (maxZ - minZ) + padding * 2;
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+
+    // Create floor and ceiling sized to match the level
+    const floorGeometry = new THREE.PlaneGeometry(levelWidth, levelHeight);
     const floorMaterial = new THREE.MeshLambertMaterial({
         map: floorTexture
     });
     if (floorTexture) {
-        // Adjust texture tiling for the room
-        floorTexture.repeat.set(ROOM_SIZE / 4, ROOM_SIZE / 4);
+        // Adjust texture tiling based on level size
+        floorTexture.repeat.set(levelWidth / 4, levelHeight / 4);
     }
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
+    floor.position.set(centerX, 0, centerZ);
     floor.receiveShadow = true;
     scene.add(floor);
 
@@ -253,12 +319,12 @@ function createLevel() {
         map: grateTexture || floorTexture
     });
     if (grateTexture) {
-        // Adjust texture tiling for the room
-        grateTexture.repeat.set(ROOM_SIZE / 4, ROOM_SIZE / 4);
+        // Adjust texture tiling based on level size
+        grateTexture.repeat.set(levelWidth / 4, levelHeight / 4);
     }
     const ceiling = new THREE.Mesh(floorGeometry, ceilingMaterial);
     ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = 4;
+    ceiling.position.set(centerX, 4, centerZ);
     scene.add(ceiling);
 
     // Build level using the simplified generator
@@ -267,8 +333,8 @@ function createLevel() {
     // Add quotes to walls
     addWallQuotes(levelData, scene);
 
-    // Add some global decorations within the room bounds
-    createGlobalDecorations(ROOM_SIZE, ROOM_SIZE);
+    // Add some global decorations within the level bounds
+    createGlobalDecorations(levelWidth, levelHeight);
 
     // Add click event for weapon (only once)
     if (!gameState.weaponClickAdded) {
@@ -713,10 +779,14 @@ function updateEnemyProjectiles(deltaTime) {
         const playerBox = new THREE.Box3().setFromCenterAndSize(player.position, playerSize);
         if (projectileBox.intersectsBox(playerBox)) {
             hit = true;
-            gameState.health -= 10;
-            if (gameState.health <= 0) {
-                gameState.health = 0;
-                gameState.playerIsDead = true;
+
+            // Only apply damage if god mode is disabled
+            if (!gameState.godMode) {
+                gameState.health -= 10;
+                if (gameState.health <= 0) {
+                    gameState.health = 0;
+                    gameState.playerIsDead = true;
+                }
             }
         }
 
@@ -776,6 +846,12 @@ function animate() {
 function updateHUD() {
     document.getElementById('health').textContent = gameState.health;
     document.getElementById('ammo').textContent = gameState.ammo;
+
+    // Update god mode indicator if it exists
+    const godModeEl = document.getElementById('godMode');
+    if (godModeEl) {
+        godModeEl.style.display = gameState.godMode ? 'block' : 'none';
+    }
 }
 
 function showGameOver() {
