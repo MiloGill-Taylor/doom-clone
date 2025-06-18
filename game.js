@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { generateLevel, buildLevel, addWallQuotes, spawnEnemies } from './levelGenerator.js';
+import { generateLevel, buildLevel, spawnEnemies } from './levelGenerator.js';
 import { createWeapon, createLighting, setupControls, loadAssets } from './gameSetup.js';
 
 // Game state
@@ -23,6 +23,7 @@ let player, weapon, walls = [];
 const bullets = [];
 const enemies = [];
 const enemyProjectiles = [];
+let endMarker = null; // Store reference to the end marker for proper cleanup
 let clock = new THREE.Clock();
 const textureLoader = new THREE.TextureLoader();
 const fbxLoader = new FBXLoader();
@@ -328,10 +329,7 @@ function createLevel() {
     scene.add(ceiling);
 
     // Build level using the simplified generator
-    buildLevel(levelData, scene, createWall);
-
-    // Add quotes to walls
-    addWallQuotes(levelData, scene);
+    endMarker = buildLevel(levelData, scene, createWall);
 
     // Add some global decorations within the level bounds
     createGlobalDecorations(levelWidth, levelHeight);
@@ -365,16 +363,40 @@ function clearLevel() {
     bullets.length = 0;
     enemyProjectiles.forEach(proj => scene.remove(proj));
     enemyProjectiles.length = 0;
+
+    // Remove the end marker if it exists
+    if (endMarker) {
+        scene.remove(endMarker);
+        endMarker = null;
+    }
 }
 
 
 function createWall(position, size, textureType = 'metal') {
     const geometry = new THREE.BoxGeometry(size[0], size[1], size[2]);
 
-    // Use simple white office walls instead of textures
-    const material = new THREE.MeshLambertMaterial({
-        color: 0xf5f5f5  // Off-white/whitewashed color
-    });
+    // Use appropriate texture based on type
+    let material;
+    if (textureType === 'brick' && brickTexture) {
+        material = new THREE.MeshLambertMaterial({
+            map: brickTexture
+        });
+        // Set texture tiling for brick walls
+        brickTexture.wrapS = brickTexture.wrapT = THREE.RepeatWrapping;
+        brickTexture.repeat.set(size[0] / 2, size[1] / 2);
+    } else if (textureType === 'metal' && wallTexture) {
+        material = new THREE.MeshLambertMaterial({
+            map: wallTexture
+        });
+        // Set texture tiling for metal walls
+        wallTexture.wrapS = wallTexture.wrapT = THREE.RepeatWrapping;
+        wallTexture.repeat.set(size[0] / 4, size[1] / 4);
+    } else {
+        // Fallback to solid color if textures aren't loaded
+        material = new THREE.MeshLambertMaterial({
+            color: textureType === 'brick' ? 0x8B4513 : 0xAAAAAA
+        });
+    }
 
     const wall = new THREE.Mesh(geometry, material);
     wall.position.set(position[0], position[1], position[2]);
@@ -435,9 +457,19 @@ function showLevelText() {
 
 function checkLevelCompletion() {
     if (gameState.levelCompleted) return;
-    
-    // Check if all enemies are dead
-    if (enemies.length === 0) {
+
+    // Check if player is standing on or near the red dot (end position)
+    const playerPos = player.position;
+    const endPos = levelData.endPos;
+
+    // Calculate distance between player and end position
+    const distance = Math.sqrt(
+        Math.pow(playerPos.x - endPos.x, 2) +
+        Math.pow(playerPos.z - endPos.z, 2)
+    );
+
+    // Complete level if player is within 2 units of the red dot
+    if (distance <= 2) {
         completeLevel();
     }
 }
@@ -828,7 +860,7 @@ function updateHUD() {
 
 function showGameOver() {
     const gameOverScreen = document.getElementById('gameOverScreen');
-    
+
     // Only set quote if game over screen is not already showing
     if (gameOverScreen.style.display !== 'flex') {
         // Array of Ben quotes
@@ -839,11 +871,11 @@ function showGameOver() {
             "Every time I hear 'form data' is a stab to my heart",
             "As the system grows, there are more things"
         ];
-        
+
         // Select a random quote
         const randomQuote = benQuotes[Math.floor(Math.random() * benQuotes.length)];
         document.getElementById('benQuote').textContent = `"${randomQuote}"`;
-        
+
         gameOverScreen.style.display = 'flex';
         if (gameState.isPointerLocked) {
             document.exitPointerLock();

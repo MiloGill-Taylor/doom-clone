@@ -1,13 +1,6 @@
 import * as THREE from 'three';
 
-// Wall quotes
-const wallQuotes = [
-    "We're on the high road to anarchy",
-    "We're just putting lipstick on a pig. But sometimes what the pig needs is lipstick",
-    "I would describe that as criminally optimistic",
-    "Every time I hear 'form data' is a stab to my heart",
-    "As the system grows, there are more things"
-];
+
 
 // Level configurations
 const ROOM_SIZE = 20; // Single room size for level 1
@@ -28,9 +21,11 @@ export function generateLevel(levelData) {
         generateLevel1(levelData);
     } else if (currentLevel === 2) {
         generateLevel2(levelData);
+    } else if (currentLevel === 3) {
+        generateLevel3(levelData);
     } else {
-        // For levels 3+, use a variation of level 2 for now
-        generateLevel2(levelData);
+        // For levels 4+, use a variation of level 3 for now
+        generateLevel3(levelData);
     }
 
     console.log(`Level ${currentLevel} generated: ${levelData.rooms.length} rooms, ${levelData.corridors.length} corridors`);
@@ -105,7 +100,94 @@ function generateLevel2(levelData) {
     levelData.endPos = { x: 0, z: finalRoom.worldPos.z };
 }
 
-export function buildLevel(levelData, scene, createWall) {
+function generateLevel3(levelData) {
+    // Level 3: Large Room -> Complex Corridor Path -> Large Final Room
+    // Create corridors that connect perfectly with no gaps
+
+    // Starting large room with more enemies and cover
+    const startRoom = {
+        worldPos: { x: 0, z: 0 },
+        width: 30,
+        height: 25,
+        type: 'combat',
+        enemies: 8,
+        cover: 6
+    };
+
+    // Create a continuous path: straight -> right -> left -> left -> right
+    // Each corridor connects exactly to the next one
+
+    // Corridor 1: Straight up from start room
+    const corridor1 = {
+        worldPos: { x: 0, z: 25 },
+        width: CORRIDOR_WIDTH,
+        height: 20,
+        type: 'corridor',
+        enemies: 2,
+        cover: 1
+    };
+
+    // Corridor 2: Right turn (horizontal going right)
+    const corridor2 = {
+        worldPos: { x: 10, z: 35 },
+        width: 20,
+        height: CORRIDOR_WIDTH,
+        type: 'corridor',
+        enemies: 1,
+        cover: 1
+    };
+
+    // Corridor 3: Left turn (vertical going up)
+    const corridor3 = {
+        worldPos: { x: 20, z: 50 },
+        width: CORRIDOR_WIDTH,
+        height: 20,
+        type: 'corridor',
+        enemies: 2,
+        cover: 1
+    };
+
+    // Corridor 4: Left turn (horizontal going left)
+    const corridor4 = {
+        worldPos: { x: 10, z: 60 },
+        width: 20,
+        height: CORRIDOR_WIDTH,
+        type: 'corridor',
+        enemies: 1,
+        cover: 1
+    };
+
+    // Corridor 5: Right turn (vertical to final room)
+    const corridor5 = {
+        worldPos: { x: 0, z: 75 },
+        width: CORRIDOR_WIDTH,
+        height: 20,
+        type: 'corridor',
+        enemies: 2,
+        cover: 1
+    };
+
+    // Final large room
+    const finalRoom = {
+        worldPos: { x: 0, z: 100 },
+        width: 28,
+        height: 22,
+        type: 'end',
+        enemies: 7,
+        cover: 5
+    };
+
+    levelData.rooms.push(startRoom, finalRoom);
+    levelData.corridors.push(corridor1, corridor2, corridor3, corridor4, corridor5);
+
+    // Player starts in the starting room
+    levelData.startPos = { x: 0, z: -10 };
+
+    // End position is in the final room
+    levelData.endPos = { x: 0, z: 105 };
+}
+
+export function buildLevel(levelData, scene, createWall, endMarkerRef) {
     console.log('Building level geometry...');
 
     // Build corridors first
@@ -118,19 +200,26 @@ export function buildLevel(levelData, scene, createWall) {
         buildRoom(room, scene, createWall);
     });
 
-    // Add outer perimeter walls for level 2 to prevent walking outside
-    if (levelData.currentLevel === 2) {
+    // Add outer perimeter walls for level 2+ to prevent walking outside
+    if (levelData.currentLevel >= 2) {
         addPerimeterWalls(levelData, scene, createWall);
     }
 
+
+
     // Add end marker (red sphere)
-    const endMarker = new THREE.Mesh(
+    const newEndMarker = new THREE.Mesh(
         new THREE.SphereGeometry(1, 16, 16),
         new THREE.MeshLambertMaterial({ color: 0xff0000, emissive: 0x440000 })
     );
-    endMarker.position.set(levelData.endPos.x, 2, levelData.endPos.z);
-    scene.add(endMarker);
+    newEndMarker.position.set(levelData.endPos.x, 2, levelData.endPos.z);
+    scene.add(newEndMarker);
+
+    // Return the end marker so it can be stored for cleanup
+    return newEndMarker;
 }
+
+
 
 function addPerimeterWalls(levelData, scene, createWall) {
     // Calculate overall level bounds
@@ -187,10 +276,25 @@ function buildRoom(room, scene, createWall) {
     const z = room.worldPos.z;
 
     // Determine which walls need openings based on level layout
-    // Large room (z=0) needs: north opening (from start corridor), south opening (to middle corridor)
-    // Final room (z=-40) needs: north opening (from middle corridor)
-    const needsNorthOpening = (room.type === 'combat' && z === 0) || (room.type === 'end' && z === -40);
-    const needsSouthOpening = (room.type === 'combat' && z === 0);
+    let needsNorthOpening = false;
+    let needsSouthOpening = false;
+
+    // Level 2 logic
+    if (room.type === 'combat' && z === 0) {
+        needsNorthOpening = true;
+        needsSouthOpening = true;
+    } else if (room.type === 'end' && z === -40) {
+        needsNorthOpening = true;
+    }
+
+    // Level 3 logic
+    if (room.type === 'combat' && z === 0) {
+        // Starting room of level 3 - needs north opening
+        needsNorthOpening = true;
+    } else if (room.type === 'end' && z === 100) {
+        // Final room of level 3 - needs south opening
+        needsSouthOpening = true;
+    }
 
     // Create room walls with openings where needed
     if (!needsNorthOpening) {
@@ -240,10 +344,41 @@ function buildCorridor(corridor, scene, createWall) {
     const z = corridor.worldPos.z;
 
     // Determine which walls need openings based on corridor position and flow direction
-    // Starting corridor (z=20): needs NORTH opening (to large room)
-    // Middle corridor (z=-20): needs NORTH opening (from large room) and SOUTH opening (to final room)
-    const needsNorthOpening = (z === 20) || (z === -20); // Both corridors need north openings
-    const needsSouthOpening = (z === -20); // Only middle corridor needs south opening
+    let needsNorthOpening = false;
+    let needsSouthOpening = false;
+    let needsEastOpening = false;
+    let needsWestOpening = false;
+
+    // Level 2 corridor logic
+    if (z === 20) {
+        needsNorthOpening = true; // Starting corridor needs north opening to large room
+    } else if (z === -20) {
+        needsNorthOpening = true; // Middle corridor needs north opening from large room
+        needsSouthOpening = true; // Middle corridor needs south opening to final room
+    }
+
+    // Level 3 corridor logic - simplified connections
+    if (z === 25 && x === 0) {
+        // Corridor 1: connects start room to corridor 2
+        needsSouthOpening = true; // From start room
+        needsNorthOpening = true; // To corridor 2
+    } else if (z === 35 && x === 10) {
+        // Corridor 2: horizontal connector
+        needsWestOpening = true; // From corridor 1
+        needsEastOpening = true; // To corridor 3
+    } else if (z === 50 && x === 20) {
+        // Corridor 3: vertical connector
+        needsSouthOpening = true; // From corridor 2
+        needsNorthOpening = true; // To corridor 4
+    } else if (z === 60 && x === 10) {
+        // Corridor 4: horizontal connector
+        needsEastOpening = true; // From corridor 3
+        needsWestOpening = true; // To corridor 5
+    } else if (z === 75 && x === 0) {
+        // Corridor 5: connects to final room
+        needsSouthOpening = true; // From corridor 4
+        needsNorthOpening = true; // To final room
+    }
 
     // Create corridor walls with openings where needed
     if (!needsNorthOpening) {
@@ -268,8 +403,28 @@ function buildCorridor(corridor, scene, createWall) {
         createWall([x + openingWidth/2 + wallPartWidth/2, 2, z + height/2], [wallPartWidth, 4, 1], 'metal'); // South wall right
     }
 
-    createWall([x - width/2, 2, z], [1, 4, height], 'metal'); // West wall
-    createWall([x + width/2, 2, z], [1, 4, height], 'metal'); // East wall
+    // Create east and west walls with openings if needed
+    if (!needsWestOpening) {
+        createWall([x - width/2, 2, z], [1, 4, height], 'metal'); // West wall
+    } else {
+        // Create west wall with opening (split into two parts)
+        const openingWidth = 4; // Width of the opening
+        const wallPartHeight = (height - openingWidth) / 2;
+
+        createWall([x - width/2, 2, z - openingWidth/2 - wallPartHeight/2], [1, 4, wallPartHeight], 'metal'); // West wall top
+        createWall([x - width/2, 2, z + openingWidth/2 + wallPartHeight/2], [1, 4, wallPartHeight], 'metal'); // West wall bottom
+    }
+
+    if (!needsEastOpening) {
+        createWall([x + width/2, 2, z], [1, 4, height], 'metal'); // East wall
+    } else {
+        // Create east wall with opening (split into two parts)
+        const openingWidth = 4; // Width of the opening
+        const wallPartHeight = (height - openingWidth) / 2;
+
+        createWall([x + width/2, 2, z - openingWidth/2 - wallPartHeight/2], [1, 4, wallPartHeight], 'metal'); // East wall top
+        createWall([x + width/2, 2, z + openingWidth/2 + wallPartHeight/2], [1, 4, wallPartHeight], 'metal'); // East wall bottom
+    }
 
     // Add some cover objects in corridors
     for (let i = 0; i < corridor.cover; i++) {
@@ -286,61 +441,7 @@ function buildCorridor(corridor, scene, createWall) {
     }
 }
 
-export function addWallQuotes(levelData, scene) {
-    // Add quotes to combat rooms
-    const quotableRooms = levelData.rooms.filter(r => r.type === 'combat');
 
-    if (quotableRooms.length > 0) {
-        const room = quotableRooms[0]; // Use first combat room
-        const quote = wallQuotes[Math.floor(Math.random() * wallQuotes.length)];
-
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 128;
-        const context = canvas.getContext('2d');
-
-        context.fillStyle = '#000000';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.fillStyle = '#00ff00';
-        context.font = 'bold 20px monospace';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-
-        // Simple text wrapping
-        const maxWidth = canvas.width - 40;
-        const words = quote.split(' ');
-        let lines = [];
-        let currentLine = '';
-
-        for (const word of words) {
-            const testLine = currentLine + (currentLine ? ' ' : '') + word;
-            const metrics = context.measureText(testLine);
-            if (metrics.width > maxWidth && currentLine) {
-                lines.push(currentLine);
-                currentLine = word;
-            } else {
-                currentLine = testLine;
-            }
-        }
-        if (currentLine) lines.push(currentLine);
-
-        const lineHeight = 25;
-        const startY = (canvas.height - lines.length * lineHeight) / 2 + lineHeight / 2;
-        lines.forEach((line, index) => {
-            context.fillText(line, canvas.width / 2, startY + index * lineHeight);
-        });
-
-        const texture = new THREE.CanvasTexture(canvas);
-        const material = new THREE.MeshLambertMaterial({ map: texture });
-        const geometry = new THREE.PlaneGeometry(8, 2);
-        const textPlane = new THREE.Mesh(geometry, material);
-
-        // Position on room wall
-        textPlane.position.set(room.worldPos.x, 2.5, room.worldPos.z - room.height/2 + 0.1);
-        textPlane.rotation.y = 0;
-        scene.add(textPlane);
-    }
-}
 
 export function spawnEnemies(levelData, gameState, createEnemy) {
     // Spawn enemies in rooms
