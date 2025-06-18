@@ -5,27 +5,44 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 export function createWeapon(camera, bottleModel) {
     let weapon;
     
+    console.log('createWeapon called with bottleModel:', bottleModel);
+    
     if (bottleModel) {
+        console.log('Bottle model found, creating weapon...');
         // Use the loaded bottle model
         weapon = bottleModel.clone();
         
-        // Apply simple material to avoid lighting issues
+        // Apply simple material to avoid lighting issues  
         weapon.traverse(function(child) {
             if (child.isMesh) {
+                console.log('Found mesh in bottle model:', child);
+                console.log('Original mesh visible:', child.visible);
+                console.log('Original mesh material:', child.material);
+                
                 child.material = new THREE.MeshBasicMaterial({
-                    color: 0x808080,
-                    wireframe: false
+                    color: 0xff0000,  // Make it bright red for debugging
+                    wireframe: false,
+                    transparent: false,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide  // Render both sides
                 });
+                child.visible = true;
                 child.castShadow = true;
+                
+                console.log('New material applied:', child.material);
+                console.log('Mesh now visible:', child.visible);
             }
         });
         
-        // Scale and position - make it visible
-        weapon.scale.set(0.05, 0.05, 0.05);
+        // Scale and position - make it EXTREMELY visible for debugging
+        weapon.scale.set(1.0, 1.0, 1.0);  // HUGE scale
         
         // Position and orient bottle so top points forward like gun muzzle
-        weapon.position.set(0.4, -0.6, -1.5);
-        weapon.rotation.set(0, Math.PI/2, Math.PI/2); // Rotate so top points forward
+        weapon.position.set(0.0, 0.0, -5.0);  // Far away from camera
+        weapon.rotation.set(0, 0, 0); // No rotation for debugging
+        
+        // Make it visible by ensuring it's not transparent
+        weapon.visible = true;
         
         console.log('Using water bottle model');
         console.log('Bottle model children count:', weapon.children.length);
@@ -33,23 +50,24 @@ export function createWeapon(camera, bottleModel) {
         console.log('Bottle model position:', weapon.position);
         console.log('Bottle model scale:', weapon.scale);
     } else {
-        // Hide weapon for now - create invisible placeholder
-        const weaponGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
-        const weaponMaterial = new THREE.MeshLambertMaterial({ 
-            color: 0x000000,
-            transparent: true,
-            opacity: 0
+        console.log('No bottle model found, creating fallback...');
+        // Create a visible fallback for debugging
+        const weaponGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const weaponMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00,  // Bright green fallback
+            wireframe: false
         });
         weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
         
-        // Position the invisible weapon
-        weapon.position.set(0, 0, 0);
+        // Position the fallback weapon
+        weapon.position.set(0, 0, -1);
         
-        console.log('Weapon hidden - using invisible placeholder');
+        console.log('Using fallback green cube weapon');
     }
 
     // Add the weapon as a child of the camera
     camera.add(weapon);
+    console.log('Weapon added to camera, camera children:', camera.children.length);
     return weapon;
 }
 
