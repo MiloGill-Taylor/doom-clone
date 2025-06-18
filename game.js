@@ -607,12 +607,17 @@ function fire() {
 
     // --- Advanced Recoil ---
 
-    // 1. Weapon visual recoil (kick back and up)
+    // 1. Weapon visual recoil (kick back and up) - FIXED VERSION
+    const originalPos = { x: weapon.position.x, y: weapon.position.y, z: weapon.position.z };
     new TWEEN.Tween(weapon.position)
-        .to({ z: weapon.position.z + 0.2, y: weapon.position.y - 0.05 }, 70)
+        .to({ z: originalPos.z + 0.2, y: originalPos.y - 0.05 }, 70)
         .yoyo(true)
         .repeat(1)
         .easing(TWEEN.Easing.Quadratic.Out)
+        .onComplete(() => {
+            // Ensure it returns to exact original position
+            weapon.position.set(originalPos.x, originalPos.y, originalPos.z);
+        })
         .start();
 
     // 2. Camera recoil (kick up and settle back down)
