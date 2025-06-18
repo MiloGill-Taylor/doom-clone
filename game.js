@@ -767,6 +767,7 @@ function updateEnemyProjectiles(deltaTime) {
             // Only apply damage if god mode is disabled
             if (!gameState.godMode) {
                 gameState.health -= 10;
+                showDamageFlash(); // Flash red when hit
                 if (gameState.health <= 0) {
                     gameState.health = 0;
                     gameState.playerIsDead = true;
@@ -851,6 +852,16 @@ function updateHealthRecovery(deltaTime) {
     }
 }
 
+function showDamageFlash() {
+    const damageOverlay = document.getElementById('damageOverlay');
+    damageOverlay.style.display = 'block';
+    
+    // Fade out the damage overlay
+    setTimeout(() => {
+        damageOverlay.style.display = 'none';
+    }, 150); // Show for 150ms
+}
+
 function showGameOver() {
     const gameOverScreen = document.getElementById('gameOverScreen');
     
@@ -858,7 +869,7 @@ function showGameOver() {
     if (gameOverScreen.style.display !== 'flex') {
         // Play game over sound
         const gameOverSound = new Audio('sounds/080205_life-lost-game-over-89697.mp3');
-        gameOverSound.volume = 0.5; // Adjust volume (0.0 to 1.0)
+        gameOverSound.volume = 0.625; // 25% louder (0.5 * 1.25)
         gameOverSound.play().catch(error => {
             console.log('Could not play game over sound:', error);
         });
