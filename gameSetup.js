@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
-// Create weapon function
+// Create weapon function - UPDATED AT 15:20
 export function createWeapon(camera, bottleModel) {
     let weapon;
     
@@ -12,43 +12,31 @@ export function createWeapon(camera, bottleModel) {
         // Use the loaded bottle model
         weapon = bottleModel.clone();
         
-        // Apply simple material to avoid lighting issues  
+        // Apply metallic and shiny material
         weapon.traverse(function(child) {
             if (child.isMesh) {
-                console.log('Found mesh in bottle model:', child);
-                console.log('Original mesh visible:', child.visible);
-                console.log('Original mesh material:', child.material);
-                
-                child.material = new THREE.MeshBasicMaterial({
-                    color: 0xff0000,  // Make it bright red for debugging
-                    wireframe: false,
-                    transparent: false,
-                    opacity: 1.0,
-                    side: THREE.DoubleSide  // Render both sides
+                child.material = new THREE.MeshStandardMaterial({
+                    color: 0xc0c0c0,      // Silver color
+                    metalness: 0.9,       // Very metallic
+                    roughness: 0.1,       // Very smooth and shiny
+                    envMapIntensity: 1.5  // Enhanced reflectivity
                 });
-                child.visible = true;
                 child.castShadow = true;
-                
-                console.log('New material applied:', child.material);
-                console.log('Mesh now visible:', child.visible);
             }
         });
         
-        // Scale and position - make it EXTREMELY visible for debugging
-        weapon.scale.set(1.0, 1.0, 1.0);  // HUGE scale
+        // Scale and position for proper FPS weapon
+        weapon.scale.set(0.9, 0.9, 0.9);
         
-        // Position and orient bottle so top points forward like gun muzzle
-        weapon.position.set(0.0, 0.0, -5.0);  // Far away from camera
-        weapon.rotation.set(0, 0, 0); // No rotation for debugging
+        // Position like typical FPS weapon (bottom-right of screen)
+        weapon.position.set(0.2, -0.05, -0.2);
+        weapon.rotation.set(0, Math.PI, Math.PI/2); // Flipped around and rotated left
         
-        // Make it visible by ensuring it's not transparent
-        weapon.visible = true;
-        
-        console.log('Using water bottle model');
+        console.log('🍼 BOTTLE VERSION 2.0 - LATEST UPDATE!');
+        console.log('🍼 Scale set to:', weapon.scale);
+        console.log('🍼 Position set to:', weapon.position);
         console.log('Bottle model children count:', weapon.children.length);
         console.log('Bottle model bounding box:', new THREE.Box3().setFromObject(weapon));
-        console.log('Bottle model position:', weapon.position);
-        console.log('Bottle model scale:', weapon.scale);
     } else {
         console.log('No bottle model found, creating fallback...');
         // Create a visible fallback for debugging
@@ -67,6 +55,15 @@ export function createWeapon(camera, bottleModel) {
 
     // Add the weapon as a child of the camera
     camera.add(weapon);
+    
+    // Debug: Monitor position over time
+    setInterval(() => {
+        if (weapon) {
+            console.log('🍼 Bottle position check:', weapon.position);
+            console.log('🍼 Bottle scale check:', weapon.scale);
+        }
+    }, 2000);
+    
     console.log('Weapon added to camera, camera children:', camera.children.length);
     return weapon;
 }

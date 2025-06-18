@@ -615,6 +615,13 @@ function fire() {
     if (gameState.ammo <= 0) return;
 
     gameState.ammo--;
+    
+    // Play gunshot sound
+    const gunshotSound = new Audio('sounds/submachine-gun-79846.mp3');
+    gunshotSound.volume = 0.3; // Adjust volume (0.0 to 1.0)
+    gunshotSound.play().catch(error => {
+        console.log('Could not play gunshot sound:', error);
+    });
 
     // Create a bullet
     const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
@@ -639,12 +646,17 @@ function fire() {
 
     // --- Advanced Recoil ---
 
-    // 1. Weapon visual recoil (kick back and up)
+    // 1. Weapon visual recoil (kick back and up) - FIXED VERSION
+    const originalPos = { x: weapon.position.x, y: weapon.position.y, z: weapon.position.z };
     new TWEEN.Tween(weapon.position)
-        .to({ z: weapon.position.z + 0.2, y: weapon.position.y - 0.05 }, 70)
+        .to({ z: originalPos.z + 0.2, y: originalPos.y - 0.05 }, 70)
         .yoyo(true)
         .repeat(1)
         .easing(TWEEN.Easing.Quadratic.Out)
+        .onComplete(() => {
+            // Ensure it returns to exact original position
+            weapon.position.set(originalPos.x, originalPos.y, originalPos.z);
+        })
         .start();
 
     // 2. Camera recoil (kick up and settle back down)
@@ -787,6 +799,8 @@ function updateEnemyProjectiles(deltaTime) {
             // Only apply damage if god mode is disabled
             if (!gameState.godMode) {
                 gameState.health -= 10;
+                showDamageFlash(); // Flash red when hit
+                playRandomGruntSound(); // Play grunt sound when hit
                 if (gameState.health <= 0) {
                     gameState.health = 0;
                     gameState.playerIsDead = true;
@@ -839,6 +853,9 @@ function animate() {
 
     // Update HUD
     updateHUD();
+    
+    // Slowly recover health over time
+    updateHealthRecovery(deltaTime);
 
     // Check for level completion
     checkLevelCompletion();
@@ -858,11 +875,57 @@ function updateHUD() {
     }
 }
 
+function updateHealthRecovery(deltaTime) {
+    // Slowly recover health over time (1 health per 3 seconds)
+    const healthRecoveryRate = 1 / 3; // health per second
+    
+    if (gameState.health < 100 && !gameState.playerIsDead) {
+        gameState.health += healthRecoveryRate * deltaTime;
+        gameState.health = Math.min(100, Math.floor(gameState.health)); // Cap at 100 and round down
+    }
+}
+
+function showDamageFlash() {
+    const damageOverlay = document.getElementById('damageOverlay');
+    damageOverlay.style.display = 'block';
+    
+    // Fade out the damage overlay
+    setTimeout(() => {
+        damageOverlay.style.display = 'none';
+    }, 150); // Show for 150ms
+}
+
+function playRandomGruntSound() {
+    // Array of grunt sound files
+    const gruntSounds = [
+        'sounds/male-grunting-in-pain-45746.mp3',
+        'sounds/grunt1-68324.mp3', 
+        'sounds/male_hurt7-48124.mp3'
+    ];
+    
+    // Select a random grunt sound
+    const randomGrunt = gruntSounds[Math.floor(Math.random() * gruntSounds.length)];
+    
+    // Play the selected grunt sound
+    const gruntSound = new Audio(randomGrunt);
+    gruntSound.volume = 0.6; // Moderate volume for grunt sounds
+    gruntSound.play().catch(error => {
+        console.log('Could not play grunt sound:', error);
+    });
+}
+
 function showGameOver() {
     const gameOverScreen = document.getElementById('gameOverScreen');
 
     // Only set quote if game over screen is not already showing
     if (gameOverScreen.style.display !== 'flex') {
+        // Play game over sound
+        const gameOverSound = new Audio('sounds/080205_life-lost-game-over-89697.mp3');
+        gameOverSound.volume = 0.9; // Much louder
+        gameOverSound.play().catch(error => {
+            console.log('Could not play game over sound:', error);
+        });
+        
         // Array of Ben quotes
         const benQuotes = [
             "We're on the high road to anarchy",
