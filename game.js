@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { generateLevel, buildLevel, addWallQuotes, spawnEnemies } from './levelGenerator.js';
 
 // Game state
 const gameState = {
@@ -8,7 +9,10 @@ const gameState = {
     isPointerLocked: false,
     playerIsDead: false,
     keys: {},
-    mouseMovement: { x: 0, y: 0 }
+    mouseMovement: { x: 0, y: 0 },
+    currentLevel: 1,
+    levelCompleted: false,
+    showingLevelText: false
 };
 
 // Three.js setup
@@ -23,13 +27,13 @@ const fbxLoader = new FBXLoader();
 let wallTexture, brickTexture;
 let floorTexture, grateTexture;
 let enemyTextures = {}; // Store enemy logo textures
-let gunModel = null;
+let bottleModel = null;
 let flowerModel = null;
 let flowerTexture = null;
 let workstationModel = null;
 
 // Movement variables
-const moveSpeed = 5;
+const moveSpeed = 12;
 const mouseSensitivity = 0.002;
 const cameraHeight = 1.7;
 
@@ -47,6 +51,16 @@ const enemyTypes = {
     2: { color: 0x00ff00, health: 100, speed: 3.0, fireRate: 0.8 },  // Green - Fast
     3: { color: 0x0000ff, health: 150, speed: 2.0, fireRate: 0.6 }   // Blue - Tank
 };
+
+// Level generation variables
+let levelData = {
+    segments: [], // Linear segments instead of rooms
+    startPos: { x: 0, z: 0 },
+    endPos: { x: 0, z: 0 },
+    playerProgress: 0,
+    lastSpawnDistance: 0
+};
+
 
 // Initialize the game
 function init() {
@@ -85,7 +99,7 @@ function init() {
 
 function loadTextures() {
     let texturesLoaded = 0;
-    const totalTextures = 11; // 4 environment textures + 3 enemy textures + 1 gun model + 1 flower model + 1 flower texture + 1 workstation model
+    const totalTextures = 11; // 4 environment textures + 3 enemy textures + 1 bottle model + 1 flower model + 1 flower texture + 1 workstation model
 
     // Load environment textures
     wallTexture = textureLoader.load('textures/wall_metal_01.jpg', 
@@ -130,20 +144,20 @@ function loadTextures() {
         );
     });
 
-    // Load gun model
+    // Load water bottle model
     fbxLoader.load(
-        'models/MachineGun.fbx',
+        'models/StainlessSteelBottle1.fbx',
         function(object) {
-            console.log('Gun model loaded successfully');
-            gunModel = object;
+            console.log('Bottle model loaded successfully');
+            bottleModel = object;
             texturesLoaded++;
             checkAllTexturesLoaded();
         },
         function(progress) {
-            console.log('Loading gun model progress:', progress);
+            console.log('Loading bottle model progress:', progress);
         },
         function(error) {
-            console.error('Error loading gun model:', error);
+            console.error('Error loading bottle model:', error);
             texturesLoaded++;
             checkAllTexturesLoaded();
         }
@@ -194,7 +208,7 @@ function loadTextures() {
             createWeapon();
             // Now create the level with the loaded textures
             createLevel();
-            spawnEnemies();
+            spawnEnemiesWrapper();
 
             // Start game loop
             animate();
@@ -203,107 +217,91 @@ function loadTextures() {
 }
 
 function createWeapon() {
-    if (gunModel) {
-        // Use the loaded gun model
-        weapon = gunModel.clone();
-        
-        // Ensure all meshes in the model have proper materials
-        weapon.traverse(function(child) {
-            if (child.isMesh) {
-                if (!child.material) {
-                    child.material = new THREE.MeshLambertMaterial({ color: 0x444444 });
-                }
-                child.castShadow = true;
-            }
-        });
-        
-        // Scale down the model to appropriate size
-        weapon.scale.set(0.006, 0.006, 0.006);
-        
-        // Position the weapon in front of the camera
-        weapon.position.set(0.8, -1.0, -1.2);
-        weapon.rotation.set(0.3, 0.5, -0.2);
-        
-        console.log('Using FBX gun model');
-        console.log('Gun model children count:', weapon.children.length);
-        console.log('Gun model bounding box:', new THREE.Box3().setFromObject(weapon));
-        console.log('Gun model position:', weapon.position);
-        console.log('Gun model scale:', weapon.scale);
-    } else {
-        // Fallback to simple geometry if model fails to load
-        const weaponGeometry = new THREE.BoxGeometry(0.1, 0.2, 1.5);
-        const weaponMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
-        weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
-        
-        // Position the weapon in front of the camera
-        weapon.position.set(0.5, -0.4, -1);
-        weapon.rotation.y = Math.PI;
-        
-        console.log('Using fallback box geometry for weapon');
-    }
+    // Hide weapon for now - create invisible placeholder
+    const weaponGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+    const weaponMaterial = new THREE.MeshLambertMaterial({ 
+        color: 0x000000,
+        transparent: true,
+        opacity: 0
+    });
+    weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
+    
+    // Position the invisible weapon
+    weapon.position.set(0, 0, 0);
+    
+    console.log('Weapon hidden - using invisible placeholder');
 
     // Add the weapon as a child of the camera
     camera.add(weapon);
 }
 
+
 function createLevel() {
-    // Create floor with stone texture
-    const floorGeometry = new THREE.PlaneGeometry(50, 50);
+    // Clear existing level objects
+    clearLevel();
+    
+    // Generate the level layout
+    generateLevel(levelData);
+    
+    // Create large floor and ceiling
+    const floorGeometry = new THREE.PlaneGeometry(200, 200);
     const floorMaterial = new THREE.MeshLambertMaterial({
         map: floorTexture
     });
     if (floorTexture) {
-        floorTexture.repeat.set(10, 10);
+        floorTexture.repeat.set(40, 40);
     }
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Create ceiling with grate texture
     const ceilingMaterial = new THREE.MeshLambertMaterial({
         map: grateTexture || floorTexture
     });
     if (grateTexture) {
-        grateTexture.repeat.set(8, 8);
+        grateTexture.repeat.set(32, 32);
     }
     const ceiling = new THREE.Mesh(floorGeometry, ceilingMaterial);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = 4;
     scene.add(ceiling);
 
-    // Create walls - simple maze layout with texture variety
-    const wallConfigs = [
-        // Outer walls (metal)
-        { pos: [0, 2, -25], size: [50, 4, 1], texture: 'metal' },
-        { pos: [0, 2, 25], size: [50, 4, 1], texture: 'metal' },
-        { pos: [-25, 2, 0], size: [1, 4, 50], texture: 'metal' },
-        { pos: [25, 2, 0], size: [1, 4, 50], texture: 'metal' },
-
-        // Inner maze walls (brick)
-        { pos: [10, 2, -10], size: [1, 4, 10], texture: 'brick' },
-        { pos: [-10, 2, 10], size: [1, 4, 10], texture: 'brick' },
-        { pos: [0, 2, -5], size: [15, 4, 1], texture: 'brick' },
-        { pos: [15, 2, 5], size: [10, 4, 1], texture: 'metal' },
-        { pos: [-15, 2, -15], size: [10, 4, 1], texture: 'brick' },
-    ];
-
-    wallConfigs.forEach(config => {
-        createWall(config.pos, config.size, config.texture);
-    });
-
-    // Add some decorative elements
+    // Build level
+    buildLevel(levelData, scene, createWall);
+    
+    // Add decorations and enemies
     createDecorations();
+    addWallQuotes(levelData, scene);
 
-    // Add click event for weapon
-    document.addEventListener('click', () => {
-        if (!gameState.isPointerLocked) {
-            document.body.requestPointerLock();
-        } else {
-            fire();
-        }
-    });
+    // Add click event for weapon (only once)
+    if (!gameState.weaponClickAdded) {
+        document.addEventListener('click', () => {
+            if (!gameState.isPointerLocked) {
+                document.body.requestPointerLock();
+            } else {
+                fire();
+            }
+        });
+        gameState.weaponClickAdded = true;
+    }
+    
+    // Show level text
+    showLevelText();
 }
+
+function clearLevel() {
+    // Remove existing walls, enemies, decorations
+    walls.forEach(wall => scene.remove(wall));
+    walls.length = 0;
+    enemies.forEach(enemy => scene.remove(enemy.mesh));
+    enemies.length = 0;
+    bullets.forEach(bullet => scene.remove(bullet));
+    bullets.length = 0;
+    enemyProjectiles.forEach(proj => scene.remove(proj));
+    enemyProjectiles.length = 0;
+}
+
 
 function createWall(position, size, textureType = 'metal') {
     const geometry = new THREE.BoxGeometry(size[0], size[1], size[2]);
@@ -341,6 +339,7 @@ function createWall(position, size, textureType = 'metal') {
     scene.add(wall);
     walls.push(wall);
 }
+
 
 function createDecorations() {
     // Add flowers
@@ -441,19 +440,62 @@ function createDecorations() {
     }
 }
 
-function spawnEnemies() {
-    const enemyPositions = [
-        { pos: new THREE.Vector3(10, 1.5, -15), type: 1 },
-        { pos: new THREE.Vector3(-15, 1.5, 10), type: 2 },
-        { pos: new THREE.Vector3(20, 1.5, 20), type: 3 },
-        { pos: new THREE.Vector3(-20, 1.5, -20), type: 1 },
-        { pos: new THREE.Vector3(15, 1.5, -5), type: 2 },
-        { pos: new THREE.Vector3(-10, 1.5, -18), type: 3 },
-    ];
+function spawnEnemiesWrapper() {
+    spawnEnemies(levelData, gameState, createEnemy);
+}
 
-    enemyPositions.forEach(enemyData => {
-        createEnemy(enemyData.pos, enemyData.type);
+function showLevelText() {
+    const levelTextEl = document.getElementById('levelText');
+    levelTextEl.textContent = `LEVEL ${gameState.currentLevel}`;
+    levelTextEl.style.display = 'block';
+    gameState.showingLevelText = true;
+    
+    setTimeout(() => {
+        levelTextEl.style.display = 'none';
+        gameState.showingLevelText = false;
+    }, 2000);
+}
+
+function checkLevelCompletion() {
+    if (gameState.levelCompleted) return;
+    
+    // Check if player is near the end position
+    const playerPos = player.position;
+    const endPos = levelData.endPos;
+    const distance = Math.sqrt(
+        Math.pow(playerPos.x - endPos.x, 2) + 
+        Math.pow(playerPos.z - endPos.z, 2)
+    );
+    
+    if (distance < 8) { // Within 8 units of end
+        completeLevel();
+    }
+}
+
+function completeLevel() {
+    gameState.levelCompleted = true;
+    gameState.currentLevel++;
+    
+    // Increase enemy difficulty
+    Object.keys(enemyTypes).forEach(type => {
+        const enemy = enemyTypes[type];
+        enemy.speed *= 1.1; // 10% faster each level
+        enemy.fireRate *= 1.15; // 15% faster firing
+        enemy.health = Math.floor(enemy.health * 1.05); // 5% more health
     });
+    
+    setTimeout(() => {
+        gameState.levelCompleted = false;
+        createLevel(); // Generate new level
+        spawnEnemiesWrapper();
+        
+        // Reset player position to start position
+        player.position.set(levelData.startPos.x, cameraHeight, levelData.startPos.z);
+        
+        // Restore some health and ammo
+        gameState.health = Math.min(100, gameState.health + 25);
+        gameState.ammo = Math.min(100, gameState.ammo + 20);
+    }, 1000);
 }
 
 function createEnemy(position, type) {
@@ -855,6 +897,9 @@ function animate() {
 
     // Update HUD
     updateHUD();
+    
+    // Check for level completion
+    checkLevelCompletion();
 
     // Render
     renderer.render(scene, camera);
@@ -894,7 +939,7 @@ function resetGame() {
     enemies.length = 0;
 
     // Respawn enemies (with their types)
-    spawnEnemies();
+    spawnEnemiesWrapper();
 
     // Relock pointer
     document.body.requestPointerLock();
