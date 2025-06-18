@@ -1,3 +1,6 @@
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
 // Game state
 const gameState = {
     health: 100,
@@ -16,8 +19,14 @@ const enemies = [];
 const enemyProjectiles = [];
 let clock = new THREE.Clock();
 const textureLoader = new THREE.TextureLoader();
-let wallTexture;
+const fbxLoader = new FBXLoader();
+let wallTexture, brickTexture;
+let floorTexture, grateTexture;
 let enemyTextures = {}; // Store enemy logo textures
+let gunModel = null;
+let flowerModel = null;
+let flowerTexture = null;
+let workstationModel = null;
 
 // Movement variables
 const moveSpeed = 5;
@@ -62,8 +71,7 @@ function init() {
     player.add(camera); // Attach camera to player for pitch
     scene.add(player);
 
-    // Create the weapon
-    createWeapon();
+    // Don't create weapon here - wait for models to load
 
     // Add lighting
     createLighting();
@@ -77,27 +85,29 @@ function init() {
 
 function loadTextures() {
     let texturesLoaded = 0;
-    const totalTextures = 4; // 1 wall + 3 enemy textures
+    const totalTextures = 11; // 4 environment textures + 3 enemy textures + 1 gun model + 1 flower model + 1 flower texture + 1 workstation model
 
-    // Load wall texture
-    wallTexture = textureLoader.load(
-        'textures/wall_metal_01.jpg',
-        function(texture) {
-            console.log('Wall texture loaded successfully');
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texturesLoaded++;
-            checkAllTexturesLoaded();
-        },
-        function(progress) {
-            console.log('Loading wall texture progress:', progress);
-        },
-        function(error) {
-            console.error('Error loading wall texture:', error);
-            texturesLoaded++;
-            checkAllTexturesLoaded();
-        }
-    );
+    // Load environment textures
+    wallTexture = textureLoader.load('textures/wall_metal_01.jpg', 
+        texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
+        undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
+    
+    brickTexture = textureLoader.load('textures/wall_brick_01.png',
+        texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
+        undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
+    
+    floorTexture = textureLoader.load('textures/floor_stone_01.png',
+        texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
+        undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
+    
+    grateTexture = textureLoader.load('textures/floor_grate_01.png',
+        texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
+        undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
+
+    // Load flower texture
+    flowerTexture = textureLoader.load('textures/flowerLP_flowerLP_BaseColor.png',
+        texture => { texturesLoaded++; checkAllTexturesLoaded(); },
+        undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
 
     // Load enemy logo textures
     [1, 2, 3].forEach(enemyType => {
@@ -120,9 +130,68 @@ function loadTextures() {
         );
     });
 
+    // Load gun model
+    fbxLoader.load(
+        'models/MachineGun.fbx',
+        function(object) {
+            console.log('Gun model loaded successfully');
+            gunModel = object;
+            texturesLoaded++;
+            checkAllTexturesLoaded();
+        },
+        function(progress) {
+            console.log('Loading gun model progress:', progress);
+        },
+        function(error) {
+            console.error('Error loading gun model:', error);
+            texturesLoaded++;
+            checkAllTexturesLoaded();
+        }
+    );
+
+    // Load flower model
+    fbxLoader.load(
+        'models/flowerLP.fbx',
+        function(object) {
+            console.log('Flower model loaded successfully');
+            flowerModel = object;
+            texturesLoaded++;
+            checkAllTexturesLoaded();
+        },
+        function(progress) {
+            console.log('Loading flower model progress:', progress);
+        },
+        function(error) {
+            console.error('Error loading flower model:', error);
+            texturesLoaded++;
+            checkAllTexturesLoaded();
+        }
+    );
+
+    // Load workstation model
+    fbxLoader.load(
+        'models/Office_workstation.FBX',
+        function(object) {
+            console.log('Workstation model loaded successfully');
+            workstationModel = object;
+            texturesLoaded++;
+            checkAllTexturesLoaded();
+        },
+        function(progress) {
+            console.log('Loading workstation model progress:', progress);
+        },
+        function(error) {
+            console.error('Error loading workstation model:', error);
+            texturesLoaded++;
+            checkAllTexturesLoaded();
+        }
+    );
+
     function checkAllTexturesLoaded() {
         if (texturesLoaded >= totalTextures) {
-            console.log('All textures loaded, starting game...');
+            console.log('All textures and models loaded, starting game...');
+            // Create the weapon now that models are loaded
+            createWeapon();
             // Now create the level with the loaded textures
             createLevel();
             spawnEnemies();
@@ -134,55 +203,93 @@ function loadTextures() {
 }
 
 function createWeapon() {
-    const weaponGeometry = new THREE.BoxGeometry(0.1, 0.2, 1.5);
-    const weaponMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
-    weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
-
-    // Position the weapon in front of the camera
-    weapon.position.set(0.5, -0.4, -1);
-    weapon.rotation.y = Math.PI;
+    if (gunModel) {
+        // Use the loaded gun model
+        weapon = gunModel.clone();
+        
+        // Ensure all meshes in the model have proper materials
+        weapon.traverse(function(child) {
+            if (child.isMesh) {
+                if (!child.material) {
+                    child.material = new THREE.MeshLambertMaterial({ color: 0x444444 });
+                }
+                child.castShadow = true;
+            }
+        });
+        
+        // Scale down the model to appropriate size
+        weapon.scale.set(0.006, 0.006, 0.006);
+        
+        // Position the weapon in front of the camera
+        weapon.position.set(0.8, -1.0, -1.2);
+        weapon.rotation.set(0.3, 0.5, -0.2);
+        
+        console.log('Using FBX gun model');
+        console.log('Gun model children count:', weapon.children.length);
+        console.log('Gun model bounding box:', new THREE.Box3().setFromObject(weapon));
+        console.log('Gun model position:', weapon.position);
+        console.log('Gun model scale:', weapon.scale);
+    } else {
+        // Fallback to simple geometry if model fails to load
+        const weaponGeometry = new THREE.BoxGeometry(0.1, 0.2, 1.5);
+        const weaponMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+        weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
+        
+        // Position the weapon in front of the camera
+        weapon.position.set(0.5, -0.4, -1);
+        weapon.rotation.y = Math.PI;
+        
+        console.log('Using fallback box geometry for weapon');
+    }
 
     // Add the weapon as a child of the camera
     camera.add(weapon);
 }
 
 function createLevel() {
-    // Create floor
+    // Create floor with stone texture
     const floorGeometry = new THREE.PlaneGeometry(50, 50);
     const floorMaterial = new THREE.MeshLambertMaterial({
-        color: 0x333333,
-        transparent: true,
-        opacity: 0.8
+        map: floorTexture
     });
+    if (floorTexture) {
+        floorTexture.repeat.set(10, 10);
+    }
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Create ceiling
-    const ceiling = new THREE.Mesh(floorGeometry, floorMaterial);
+    // Create ceiling with grate texture
+    const ceilingMaterial = new THREE.MeshLambertMaterial({
+        map: grateTexture || floorTexture
+    });
+    if (grateTexture) {
+        grateTexture.repeat.set(8, 8);
+    }
+    const ceiling = new THREE.Mesh(floorGeometry, ceilingMaterial);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = 4;
     scene.add(ceiling);
 
-    // Create walls - simple maze layout
+    // Create walls - simple maze layout with texture variety
     const wallConfigs = [
-        // Outer walls
-        { pos: [0, 2, -25], size: [50, 4, 1] },
-        { pos: [0, 2, 25], size: [50, 4, 1] },
-        { pos: [-25, 2, 0], size: [1, 4, 50] },
-        { pos: [25, 2, 0], size: [1, 4, 50] },
+        // Outer walls (metal)
+        { pos: [0, 2, -25], size: [50, 4, 1], texture: 'metal' },
+        { pos: [0, 2, 25], size: [50, 4, 1], texture: 'metal' },
+        { pos: [-25, 2, 0], size: [1, 4, 50], texture: 'metal' },
+        { pos: [25, 2, 0], size: [1, 4, 50], texture: 'metal' },
 
-        // Inner maze walls
-        { pos: [10, 2, -10], size: [1, 4, 10] },
-        { pos: [-10, 2, 10], size: [1, 4, 10] },
-        { pos: [0, 2, -5], size: [15, 4, 1] },
-        { pos: [15, 2, 5], size: [10, 4, 1] },
-        { pos: [-15, 2, -15], size: [10, 4, 1] },
+        // Inner maze walls (brick)
+        { pos: [10, 2, -10], size: [1, 4, 10], texture: 'brick' },
+        { pos: [-10, 2, 10], size: [1, 4, 10], texture: 'brick' },
+        { pos: [0, 2, -5], size: [15, 4, 1], texture: 'brick' },
+        { pos: [15, 2, 5], size: [10, 4, 1], texture: 'metal' },
+        { pos: [-15, 2, -15], size: [10, 4, 1], texture: 'brick' },
     ];
 
     wallConfigs.forEach(config => {
-        createWall(config.pos, config.size);
+        createWall(config.pos, config.size, config.texture);
     });
 
     // Add some decorative elements
@@ -198,29 +305,33 @@ function createLevel() {
     });
 }
 
-function createWall(position, size) {
+function createWall(position, size, textureType = 'metal') {
     const geometry = new THREE.BoxGeometry(size[0], size[1], size[2]);
 
     // Create material with proper texture setup
     const material = new THREE.MeshLambertMaterial();
 
+    // Select texture based on type
+    let selectedTexture = wallTexture; // default to metal
+    if (textureType === 'brick' && brickTexture) {
+        selectedTexture = brickTexture;
+    }
+
     // Check if texture loaded successfully, fallback to color if not
-    if (wallTexture) {
-        material.map = wallTexture;
+    if (selectedTexture) {
         // Set tiling for this specific wall
         const tileX = Math.max(1, Math.floor(size[0] / 2)); // Tile every 2 units
         const tileY = Math.max(1, Math.floor(size[1] / 2)); // Tile every 2 units
 
         // Clone the texture for this wall so we can set unique repeat values
-        material.map = wallTexture.clone();
+        material.map = selectedTexture.clone();
         material.map.wrapS = THREE.RepeatWrapping;
         material.map.wrapT = THREE.RepeatWrapping;
         material.map.repeat.set(tileX, tileY);
         material.map.needsUpdate = true;
     } else {
         // Fallback to a visible color if texture doesn't load
-        material.color.setHex(0x666666);
-        console.log('Wall texture not loaded, using fallback color');
+        material.color.setHex(textureType === 'brick' ? 0x8B4513 : 0x666666);
     }
 
     const wall = new THREE.Mesh(geometry, material);
@@ -232,8 +343,74 @@ function createWall(position, size) {
 }
 
 function createDecorations() {
+    // Add flowers
+    if (flowerModel) {
+        const flowerPositions = [
+            { x: -12, z: -12 },
+            { x: 12, z: 12 },
+            { x: -18, z: 5 },
+            { x: 8, z: -18 },
+            { x: 18, z: -8 },
+            { x: -8, z: 18 },
+            { x: 0, z: 12 },
+            { x: -15, z: 0 }
+        ];
+
+        flowerPositions.forEach(pos => {
+            const flower = flowerModel.clone();
+            flower.scale.set(0.03, 0.03, 0.03);
+            flower.position.set(pos.x, 0, pos.z);
+            flower.rotation.y = Math.random() * Math.PI * 2; // Random rotation
+            
+            // Apply flower texture and materials
+            flower.traverse(function(child) {
+                if (child.isMesh) {
+                    if (flowerTexture) {
+                        child.material = new THREE.MeshLambertMaterial({ map: flowerTexture });
+                    } else {
+                        child.material = new THREE.MeshLambertMaterial({ color: 0xFF69B4 });
+                    }
+                    child.castShadow = true;
+                }
+            });
+            
+            scene.add(flower);
+            console.log('Added flower at', pos.x, pos.z);
+        });
+    }
+
+    // Add office workstations
+    if (workstationModel) {
+        const workstationPositions = [
+            { x: -20, z: -10, rotation: 0 },
+            { x: 20, z: 10, rotation: Math.PI },
+            { x: -5, z: 20, rotation: Math.PI/2 },
+            { x: 5, z: -20, rotation: -Math.PI/2 }
+        ];
+
+        workstationPositions.forEach(pos => {
+            const workstation = workstationModel.clone();
+            workstation.scale.set(0.002, 0.002, 0.002);
+            workstation.position.set(pos.x, 0, pos.z);
+            workstation.rotation.y = pos.rotation;
+            
+            // Ensure workstation materials are set
+            workstation.traverse(function(child) {
+                if (child.isMesh) {
+                    if (!child.material) {
+                        child.material = new THREE.MeshLambertMaterial({ color: 0x808080 });
+                    }
+                    child.castShadow = true;
+                }
+            });
+            
+            scene.add(workstation);
+            console.log('Added workstation at', pos.x, pos.z);
+        });
+    }
+
     // Add some pillars
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
         const pillarGeometry = new THREE.CylinderGeometry(0.5, 0.5, 4);
         const pillarMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
         const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
@@ -248,7 +425,7 @@ function createDecorations() {
     }
 
     // Add some boxes
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 5; i++) {
         const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
         const boxMaterial = new THREE.MeshLambertMaterial({
             color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5)
