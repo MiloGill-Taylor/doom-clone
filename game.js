@@ -105,7 +105,7 @@ function init() {
     document.addEventListener('keydown', (event) => {
         if (event.code === 'KeyG') {
             gameState.godMode = !gameState.godMode;
-            console.log(`God Mode ${gameState.godMode ? 'ENABLED' : 'DISABLED'}`);
+            console.log(`Mast admin ${gameState.godMode ? 'ENABLED' : 'DISABLED'}`);
 
             // Visual feedback
             const godModeEl = document.getElementById('godMode') || createGodModeIndicator();
@@ -238,16 +238,63 @@ function createGodModeIndicator() {
     godModeEl.id = 'godMode';
     godModeEl.style.cssText = `
         position: fixed;
-        top: 10px;
-        right: 10px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
         color: #ffff00;
-        font-size: 18px;
+        font-size: 72px;
         font-weight: bold;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-        z-index: 1000;
+        font-family: 'Arial Black', Arial, sans-serif;
+        text-align: center;
+        text-shadow:
+            0 0 10px #ffff00,
+            0 0 20px #ffff00,
+            0 0 30px #ffff00,
+            0 0 40px #ffff00,
+            0 0 50px #ffaa00,
+            0 0 60px #ffaa00,
+            0 0 70px #ffaa00,
+            2px 2px 8px rgba(0,0,0,0.8);
+        animation: glow 2s ease-in-out infinite alternate;
+        z-index: 10000;
         display: none;
+        pointer-events: none;
     `;
-    godModeEl.textContent = 'GOD MODE';
+
+    // Add CSS animation for the glow effect
+    if (!document.querySelector('#glowAnimation')) {
+        const style = document.createElement('style');
+        style.id = 'glowAnimation';
+        style.textContent = `
+            @keyframes glow {
+                from {
+                    text-shadow:
+                        0 0 10px #ffff00,
+                        0 0 20px #ffff00,
+                        0 0 30px #ffff00,
+                        0 0 40px #ffff00,
+                        0 0 50px #ffaa00,
+                        0 0 60px #ffaa00,
+                        0 0 70px #ffaa00,
+                        2px 2px 8px rgba(0,0,0,0.8);
+                }
+                to {
+                    text-shadow:
+                        0 0 20px #ffff00,
+                        0 0 30px #ffff00,
+                        0 0 40px #ffff00,
+                        0 0 50px #ffff00,
+                        0 0 60px #ffaa00,
+                        0 0 70px #ffaa00,
+                        0 0 80px #ffaa00,
+                        2px 2px 8px rgba(0,0,0,0.8);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    godModeEl.textContent = 'Mast admin';
     document.body.appendChild(godModeEl);
     return godModeEl;
 }
@@ -615,7 +662,7 @@ function fire() {
     if (gameState.ammo <= 0) return;
 
     gameState.ammo--;
-    
+
     // Play gunshot sound
     const gunshotSound = new Audio('sounds/submachine-gun-79846.mp3');
     gunshotSound.volume = 0.3; // Adjust volume (0.0 to 1.0)
@@ -853,7 +900,7 @@ function animate() {
 
     // Update HUD
     updateHUD();
-    
+
     // Slowly recover health over time
     updateHealthRecovery(deltaTime);
 
@@ -878,7 +925,7 @@ function updateHUD() {
 function updateHealthRecovery(deltaTime) {
     // Slowly recover health over time (1 health per 3 seconds)
     const healthRecoveryRate = 1 / 3; // health per second
-    
+
     if (gameState.health < 100 && !gameState.playerIsDead) {
         gameState.health += healthRecoveryRate * deltaTime;
         gameState.health = Math.min(100, Math.floor(gameState.health)); // Cap at 100 and round down
@@ -888,7 +935,7 @@ function updateHealthRecovery(deltaTime) {
 function showDamageFlash() {
     const damageOverlay = document.getElementById('damageOverlay');
     damageOverlay.style.display = 'block';
-    
+
     // Fade out the damage overlay
     setTimeout(() => {
         damageOverlay.style.display = 'none';
@@ -899,13 +946,13 @@ function playRandomGruntSound() {
     // Array of grunt sound files
     const gruntSounds = [
         'sounds/male-grunting-in-pain-45746.mp3',
-        'sounds/grunt1-68324.mp3', 
+        'sounds/grunt1-68324.mp3',
         'sounds/male_hurt7-48124.mp3'
     ];
-    
+
     // Select a random grunt sound
     const randomGrunt = gruntSounds[Math.floor(Math.random() * gruntSounds.length)];
-    
+
     // Play the selected grunt sound
     const gruntSound = new Audio(randomGrunt);
     gruntSound.volume = 0.6; // Moderate volume for grunt sounds
@@ -925,7 +972,7 @@ function showGameOver() {
         gameOverSound.play().catch(error => {
             console.log('Could not play game over sound:', error);
         });
-        
+
         // Array of Ben quotes
         const benQuotes = [
             "We're on the high road to anarchy",
