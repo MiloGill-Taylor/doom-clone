@@ -583,6 +583,13 @@ function fire() {
     if (gameState.ammo <= 0) return;
 
     gameState.ammo--;
+    
+    // Play gunshot sound
+    const gunshotSound = new Audio('sounds/submachine-gun-79846.mp3');
+    gunshotSound.volume = 0.3; // Adjust volume (0.0 to 1.0)
+    gunshotSound.play().catch(error => {
+        console.log('Could not play gunshot sound:', error);
+    });
 
     // Create a bullet
     const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
@@ -812,6 +819,9 @@ function animate() {
 
     // Update HUD
     updateHUD();
+    
+    // Slowly recover health over time
+    updateHealthRecovery(deltaTime);
 
     // Check for level completion
     checkLevelCompletion();
@@ -831,11 +841,28 @@ function updateHUD() {
     }
 }
 
+function updateHealthRecovery(deltaTime) {
+    // Slowly recover health over time (1 health per 3 seconds)
+    const healthRecoveryRate = 1 / 3; // health per second
+    
+    if (gameState.health < 100 && !gameState.playerIsDead) {
+        gameState.health += healthRecoveryRate * deltaTime;
+        gameState.health = Math.min(100, Math.floor(gameState.health)); // Cap at 100 and round down
+    }
+}
+
 function showGameOver() {
     const gameOverScreen = document.getElementById('gameOverScreen');
     
     // Only set quote if game over screen is not already showing
     if (gameOverScreen.style.display !== 'flex') {
+        // Play game over sound
+        const gameOverSound = new Audio('sounds/080205_life-lost-game-over-89697.mp3');
+        gameOverSound.volume = 0.5; // Adjust volume (0.0 to 1.0)
+        gameOverSound.play().catch(error => {
+            console.log('Could not play game over sound:', error);
+        });
+        
         // Array of Ben quotes
         const benQuotes = [
             "We're on the high road to anarchy",
