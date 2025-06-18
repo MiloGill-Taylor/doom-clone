@@ -358,7 +358,7 @@ function createDecorations() {
 
         flowerPositions.forEach(pos => {
             const flower = flowerModel.clone();
-            flower.scale.set(0.03, 0.03, 0.03);
+            flower.scale.set(0.025, 0.025, 0.025);
             flower.position.set(pos.x, 0, pos.z);
             flower.rotation.y = Math.random() * Math.PI * 2; // Random rotation
             
