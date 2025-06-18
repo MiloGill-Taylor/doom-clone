@@ -54,11 +54,13 @@ const enemyTypes = {
 
 // Level generation variables
 let levelData = {
-    segments: [], // Linear segments instead of rooms
+    rooms: [],
+    corridors: [],
+    sideRooms: [],
+    doors: [],
     startPos: { x: 0, z: 0 },
     endPos: { x: 0, z: 0 },
-    playerProgress: 0,
-    lastSpawnDistance: 0
+    currentLevel: 1
 };
 
 
@@ -102,18 +104,18 @@ function loadTextures() {
     const totalTextures = 11; // 4 environment textures + 3 enemy textures + 1 bottle model + 1 flower model + 1 flower texture + 1 workstation model
 
     // Load environment textures
-    wallTexture = textureLoader.load('textures/wall_metal_01.jpg', 
+    wallTexture = textureLoader.load('textures/wall_metal_01.jpg',
         texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
         undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
-    
+
     brickTexture = textureLoader.load('textures/wall_brick_01.png',
         texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
         undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
-    
+
     floorTexture = textureLoader.load('textures/floor_stone_01.png',
         texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
         undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
-    
+
     grateTexture = textureLoader.load('textures/floor_grate_01.png',
         texture => { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texturesLoaded++; checkAllTexturesLoaded(); },
         undefined, () => { texturesLoaded++; checkAllTexturesLoaded(); });
@@ -219,16 +221,16 @@ function loadTextures() {
 function createWeapon() {
     // Hide weapon for now - create invisible placeholder
     const weaponGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
-    const weaponMaterial = new THREE.MeshLambertMaterial({ 
+    const weaponMaterial = new THREE.MeshLambertMaterial({
         color: 0x000000,
         transparent: true,
         opacity: 0
     });
     weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
-    
+
     // Position the invisible weapon
     weapon.position.set(0, 0, 0);
-    
+
     console.log('Weapon hidden - using invisible placeholder');
 
     // Add the weapon as a child of the camera
@@ -239,17 +241,24 @@ function createWeapon() {
 function createLevel() {
     // Clear existing level objects
     clearLevel();
-    
+
+    // Update level data with current level
+    levelData.currentLevel = gameState.currentLevel;
+
     // Generate the level layout
     generateLevel(levelData);
-    
-    // Create large floor and ceiling
-    const floorGeometry = new THREE.PlaneGeometry(200, 200);
+
+    // Use the simple room size (20x20) for our single room
+    const ROOM_SIZE = 20;
+
+    // Create floor and ceiling sized to match the single room
+    const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const floorMaterial = new THREE.MeshLambertMaterial({
         map: floorTexture
     });
     if (floorTexture) {
-        floorTexture.repeat.set(40, 40);
+        // Adjust texture tiling for the room
+        floorTexture.repeat.set(ROOM_SIZE / 4, ROOM_SIZE / 4);
     }
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
@@ -260,19 +269,22 @@ function createLevel() {
         map: grateTexture || floorTexture
     });
     if (grateTexture) {
-        grateTexture.repeat.set(32, 32);
+        // Adjust texture tiling for the room
+        grateTexture.repeat.set(ROOM_SIZE / 4, ROOM_SIZE / 4);
     }
     const ceiling = new THREE.Mesh(floorGeometry, ceilingMaterial);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = 4;
     scene.add(ceiling);
 
-    // Build level
+    // Build level using the simplified generator
     buildLevel(levelData, scene, createWall);
-    
-    // Add decorations and enemies
-    createDecorations();
+
+    // Add quotes to walls
     addWallQuotes(levelData, scene);
+
+    // Add some global decorations within the room bounds
+    createGlobalDecorations(ROOM_SIZE, ROOM_SIZE);
 
     // Add click event for weapon (only once)
     if (!gameState.weaponClickAdded) {
@@ -285,9 +297,12 @@ function createLevel() {
         });
         gameState.weaponClickAdded = true;
     }
-    
+
     // Show level text
     showLevelText();
+
+    // Position player at start
+    player.position.set(levelData.startPos.x, cameraHeight, levelData.startPos.z);
 }
 
 function clearLevel() {
@@ -340,103 +355,36 @@ function createWall(position, size, textureType = 'metal') {
     walls.push(wall);
 }
 
-
-function createDecorations() {
-    // Add flowers
+function createGlobalDecorations(levelWidth, levelHeight) {
+    // Add flowers only within level bounds
     if (flowerModel) {
-        const flowerPositions = [
-            { x: -12, z: -12 },
-            { x: 12, z: 12 },
-            { x: -18, z: 5 },
-            { x: 8, z: -18 },
-            { x: 18, z: -8 },
-            { x: -8, z: 18 },
-            { x: 0, z: 12 },
-            { x: -15, z: 0 }
-        ];
-
-        flowerPositions.forEach(pos => {
+        for (let i = 0; i < 4; i++) {
             const flower = flowerModel.clone();
             flower.scale.set(0.025, 0.025, 0.025);
-            flower.position.set(pos.x, 0, pos.z);
-            flower.rotation.y = Math.random() * Math.PI * 2; // Random rotation
-            
-            // Apply flower texture and materials
-            flower.traverse(function(child) {
-                if (child.isMesh) {
-                    if (flowerTexture) {
-                        child.material = new THREE.MeshLambertMaterial({ map: flowerTexture });
-                    } else {
-                        child.material = new THREE.MeshLambertMaterial({ color: 0xFF69B4 });
+
+            // Random position within level bounds
+            const x = (Math.random() - 0.5) * (levelWidth - 4);
+            const z = (Math.random() - 0.5) * (levelHeight - 4);
+
+            // Check if position conflicts with level geometry
+            if (!checkCollision(new THREE.Vector3(x, 0, z), new THREE.Vector3(2, 2, 2))) {
+                flower.position.set(x, 0, z);
+                flower.rotation.y = Math.random() * Math.PI * 2;
+
+                flower.traverse(function(child) {
+                    if (child.isMesh) {
+                        if (flowerTexture) {
+                            child.material = new THREE.MeshLambertMaterial({ map: flowerTexture });
+                        } else {
+                            child.material = new THREE.MeshLambertMaterial({ color: 0xFF69B4 });
+                        }
+                        child.castShadow = true;
                     }
-                    child.castShadow = true;
-                }
-            });
-            
-            scene.add(flower);
-            console.log('Added flower at', pos.x, pos.z);
-        });
-    }
+                });
 
-    // Add office workstations
-    if (workstationModel) {
-        const workstationPositions = [
-            { x: -20, z: -10, rotation: 0 },
-            { x: 20, z: 10, rotation: Math.PI },
-            { x: -5, z: 20, rotation: Math.PI/2 },
-            { x: 5, z: -20, rotation: -Math.PI/2 }
-        ];
-
-        workstationPositions.forEach(pos => {
-            const workstation = workstationModel.clone();
-            workstation.scale.set(0.002, 0.002, 0.002);
-            workstation.position.set(pos.x, 0, pos.z);
-            workstation.rotation.y = pos.rotation;
-            
-            // Ensure workstation materials are set
-            workstation.traverse(function(child) {
-                if (child.isMesh) {
-                    if (!child.material) {
-                        child.material = new THREE.MeshLambertMaterial({ color: 0x808080 });
-                    }
-                    child.castShadow = true;
-                }
-            });
-            
-            scene.add(workstation);
-            console.log('Added workstation at', pos.x, pos.z);
-        });
-    }
-
-    // Add some pillars
-    for (let i = 0; i < 3; i++) {
-        const pillarGeometry = new THREE.CylinderGeometry(0.5, 0.5, 4);
-        const pillarMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-        const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
-        pillar.position.set(
-            (Math.random() - 0.5) * 40,
-            2,
-            (Math.random() - 0.5) * 40
-        );
-        pillar.castShadow = true;
-        scene.add(pillar);
-        walls.push(pillar);
-    }
-
-    // Add some boxes
-    for (let i = 0; i < 5; i++) {
-        const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-        const boxMaterial = new THREE.MeshLambertMaterial({
-            color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5)
-        });
-        const box = new THREE.Mesh(boxGeometry, boxMaterial);
-        box.position.set(
-            (Math.random() - 0.5) * 30,
-            0.5,
-            (Math.random() - 0.5) * 30
-        );
-        box.castShadow = true;
-        scene.add(box);
+                scene.add(flower);
+            }
+        }
     }
 }
 
@@ -449,7 +397,7 @@ function showLevelText() {
     levelTextEl.textContent = `LEVEL ${gameState.currentLevel}`;
     levelTextEl.style.display = 'block';
     gameState.showingLevelText = true;
-    
+
     setTimeout(() => {
         levelTextEl.style.display = 'none';
         gameState.showingLevelText = false;
@@ -458,15 +406,15 @@ function showLevelText() {
 
 function checkLevelCompletion() {
     if (gameState.levelCompleted) return;
-    
+
     // Check if player is near the end position
     const playerPos = player.position;
     const endPos = levelData.endPos;
     const distance = Math.sqrt(
-        Math.pow(playerPos.x - endPos.x, 2) + 
+        Math.pow(playerPos.x - endPos.x, 2) +
         Math.pow(playerPos.z - endPos.z, 2)
     );
-    
+
     if (distance < 8) { // Within 8 units of end
         completeLevel();
     }
@@ -475,7 +423,7 @@ function checkLevelCompletion() {
 function completeLevel() {
     gameState.levelCompleted = true;
     gameState.currentLevel++;
-    
+
     // Increase enemy difficulty
     Object.keys(enemyTypes).forEach(type => {
         const enemy = enemyTypes[type];
@@ -483,15 +431,15 @@ function completeLevel() {
         enemy.fireRate *= 1.15; // 15% faster firing
         enemy.health = Math.floor(enemy.health * 1.05); // 5% more health
     });
-    
+
     setTimeout(() => {
         gameState.levelCompleted = false;
         createLevel(); // Generate new level
         spawnEnemiesWrapper();
-        
+
         // Reset player position to start position
         player.position.set(levelData.startPos.x, cameraHeight, levelData.startPos.z);
-        
+
         // Restore some health and ammo
         gameState.health = Math.min(100, gameState.health + 25);
         gameState.ammo = Math.min(100, gameState.ammo + 20);
@@ -897,7 +845,7 @@ function animate() {
 
     // Update HUD
     updateHUD();
-    
+
     // Check for level completion
     checkLevelCompletion();
 
