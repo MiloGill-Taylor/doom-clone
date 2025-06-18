@@ -768,6 +768,7 @@ function updateEnemyProjectiles(deltaTime) {
             if (!gameState.godMode) {
                 gameState.health -= 10;
                 showDamageFlash(); // Flash red when hit
+                playRandomGruntSound(); // Play grunt sound when hit
                 if (gameState.health <= 0) {
                     gameState.health = 0;
                     gameState.playerIsDead = true;
@@ -860,6 +861,25 @@ function showDamageFlash() {
     setTimeout(() => {
         damageOverlay.style.display = 'none';
     }, 150); // Show for 150ms
+}
+
+function playRandomGruntSound() {
+    // Array of grunt sound files
+    const gruntSounds = [
+        'sounds/male-grunting-in-pain-45746.mp3',
+        'sounds/grunt1-68324.mp3', 
+        'sounds/male_hurt7-48124.mp3'
+    ];
+    
+    // Select a random grunt sound
+    const randomGrunt = gruntSounds[Math.floor(Math.random() * gruntSounds.length)];
+    
+    // Play the selected grunt sound
+    const gruntSound = new Audio(randomGrunt);
+    gruntSound.volume = 0.6; // Moderate volume for grunt sounds
+    gruntSound.play().catch(error => {
+        console.log('Could not play grunt sound:', error);
+    });
 }
 
 function showGameOver() {
