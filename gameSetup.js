@@ -9,24 +9,22 @@ export function createWeapon(camera, bottleModel) {
         // Use the loaded bottle model
         weapon = bottleModel.clone();
         
-        // Apply silver metallic material to all meshes
+        // Apply simple material to avoid lighting issues
         weapon.traverse(function(child) {
             if (child.isMesh) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: 0xc0c0c0,      // Silver color
-                    metalness: 0.9,       // Very metallic
-                    roughness: 0.1,       // Smooth and shiny
-                    envMapIntensity: 1.0  // Reflective
+                child.material = new THREE.MeshBasicMaterial({
+                    color: 0x808080,
+                    wireframe: false
                 });
                 child.castShadow = true;
             }
         });
         
-        // Scale down the model to appropriate size
-        weapon.scale.set(0.02, 0.02, 0.02);
+        // Scale and position - make it visible
+        weapon.scale.set(0.05, 0.05, 0.05);
         
         // Position and orient bottle so top points forward like gun muzzle
-        weapon.position.set(0.4, -0.6, -0.8);
+        weapon.position.set(0.4, -0.6, -1.5);
         weapon.rotation.set(0, Math.PI/2, Math.PI/2); // Rotate so top points forward
         
         console.log('Using water bottle model');
@@ -187,7 +185,7 @@ export function loadAssets(textureLoader, fbxLoader, checkAllAssetsLoaded) {
 
     // Load water bottle model
     fbxLoader.load(
-        'models/StainlessSteelBottle1.fbx',
+        'models/steel bottle.fbx',
         function(object) {
             console.log('Bottle model loaded successfully');
             assets.bottleModel = object;
