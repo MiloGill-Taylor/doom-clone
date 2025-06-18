@@ -869,7 +869,7 @@ function showGameOver() {
     if (gameOverScreen.style.display !== 'flex') {
         // Play game over sound
         const gameOverSound = new Audio('sounds/080205_life-lost-game-over-89697.mp3');
-        gameOverSound.volume = 0.625; // 25% louder (0.5 * 1.25)
+        gameOverSound.volume = 0.9; // Much louder
         gameOverSound.play().catch(error => {
             console.log('Could not play game over sound:', error);
         });
