@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { generateLevel, buildLevel, addWallQuotes, spawnEnemies } from './levelGenerator.js';
+import { createWeapon, createLighting, setupControls, loadAssets } from './gameSetup.js';
 
 // Game state
 const gameState = {
@@ -88,10 +89,10 @@ function init() {
     // Don't create weapon here - wait for models to load
 
     // Add lighting
-    createLighting();
+    createLighting(scene);
 
     // Setup controls
-    setupControls();
+    setupControls(gameState, onWindowResize, resetGame);
 
     // Load all textures
     loadTextures();
@@ -146,7 +147,7 @@ function loadTextures() {
 
     // Load water bottle model
     fbxLoader.load(
-        'models/StainlessSteelBottle1.fbx',
+        'models/steel bottle.fbx',
         function(object) {
             console.log('Bottle model loaded successfully');
             bottleModel = object;
@@ -205,7 +206,7 @@ function loadTextures() {
         if (texturesLoaded >= totalTextures) {
             console.log('All textures and models loaded, starting game...');
             // Create the weapon now that models are loaded
-            createWeapon();
+            weapon = createWeapon(camera, bottleModel);
             // Now create the level with the loaded textures
             createLevel();
             spawnEnemiesWrapper();
@@ -216,24 +217,7 @@ function loadTextures() {
     }
 }
 
-function createWeapon() {
-    // Hide weapon for now - create invisible placeholder
-    const weaponGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
-    const weaponMaterial = new THREE.MeshLambertMaterial({ 
-        color: 0x000000,
-        transparent: true,
-        opacity: 0
-    });
-    weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
-    
-    // Position the invisible weapon
-    weapon.position.set(0, 0, 0);
-    
-    console.log('Weapon hidden - using invisible placeholder');
-
-    // Add the weapon as a child of the camera
-    camera.add(weapon);
-}
+// createWeapon function now imported from gameSetup.js
 
 
 function createLevel() {
@@ -536,73 +520,9 @@ function createEnemy(position, type) {
     scene.add(enemyMesh);
 }
 
-function createLighting() {
-    // Much brighter ambient light
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
-    scene.add(ambientLight);
+// createLighting function now imported from gameSetup.js
 
-    // Brighter directional light (sun)
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    directionalLight.position.set(10, 20, 5);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.near = 0.5;
-    directionalLight.shadow.camera.far = 500;
-    scene.add(directionalLight);
-
-    // Additional fill light
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    fillLight.position.set(-10, 10, -5);
-    scene.add(fillLight);
-
-    // Point lights for atmosphere (reduced intensity since we have more ambient)
-    const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00];
-    for (let i = 0; i < 4; i++) {
-        const pointLight = new THREE.PointLight(colors[i], 0.3, 15);
-        pointLight.position.set(
-            (Math.random() - 0.5) * 40,
-            3,
-            (Math.random() - 0.5) * 40
-        );
-        scene.add(pointLight);
-    }
-}
-
-function setupControls() {
-    // Keyboard events
-    document.addEventListener('keydown', (event) => {
-        gameState.keys[event.code] = true;
-    });
-
-    document.addEventListener('keyup', (event) => {
-        gameState.keys[event.code] = false;
-    });
-
-    // Mouse events
-    document.addEventListener('mousemove', (event) => {
-        if (gameState.isPointerLocked) {
-            gameState.mouseMovement.x = event.movementX * mouseSensitivity;
-            gameState.mouseMovement.y = event.movementY * mouseSensitivity;
-        }
-    });
-
-    document.addEventListener('pointerlockchange', () => {
-        if (document.pointerLockElement === document.body) {
-            gameState.isPointerLocked = true;
-        } else {
-            gameState.isPointerLocked = false;
-        }
-    });
-
-    // Restart button
-    document.getElementById('restartButton').addEventListener('click', () => {
-        resetGame();
-    });
-
-    // Window resize
-    window.addEventListener('resize', onWindowResize);
-}
+// setupControls function now imported from gameSetup.js
 
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
